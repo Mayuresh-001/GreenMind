@@ -10,7 +10,8 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 
-# Node / Editor files
+# Local scripts
+run_git.ps1
 node_modules/
 .vscode/
 .idea/
