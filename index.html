@@ -1562,8 +1562,8 @@ footer strong{color:var(--bio)}
     <!-- View 3: Step 2 - Password (from Video) -->
     <div id="googleViewPasswordStep" class="google-another-box">
       <div class="google-modal-header">
-        <h3 id="googleGreetingName">Hi Mayuresh</h3>
-        <p id="googleGreetingEmail">mayureshpolke36@gmail.com</p>
+        <h3 id="googleGreetingName">Welcome</h3>
+        <p id="googleGreetingEmail" style="word-break:break-all"></p>
         <small style="color:#9aa0a6;display:block;margin-top:.4rem">To continue, first verify it's you</small>
       </div>
       <input type="password" id="googleAnotherPassword" class="google-text-input" placeholder="Enter your password" autocomplete="new-password"/>
@@ -4212,49 +4212,35 @@ function setAuthAlert(msg, type='err'){
 /* ============================================================
    GOOGLE ACCOUNT CHOOSER ENGINE (VIDEO SOLUTION)
 ============================================================ */
-const VIDEO_GOOGLE_ACCOUNTS = [
-  {
-    id: 'google_mayuresh_1',
-    name: 'Mayuresh Polke',
-    email: 'mayureshpolke36@gmail.com',
-    avatarBg: '#c5221f',
-    initial: 'M'
-  },
-  {
-    id: 'google_mayuresh_2',
-    name: 'Mayuresh Polke',
-    email: 'polkemayuresh@gmail.com',
-    avatarBg: '#137333',
-    initial: 'M'
-  },
-  {
-    id: 'google_mayuresh_3',
-    name: 'Mayuresh Polke',
-    email: 'mayureshpolke300@gmail.com',
-    avatarBg: '#a142f4',
-    initial: 'M'
-  },
-  {
-    id: 'google_rohit_4',
-    name: 'Rohit',
-    email: 'rohit030305@gmail.com',
-    avatarBg: '#1a73e8',
-    initial: 'R'
-  }
-];
-
 function getStoredGoogleAccounts(){
   try {
     const stored = localStorage.getItem('greenmind_google_accounts');
     if(stored){
       const parsed = JSON.parse(stored);
-      if(Array.isArray(parsed) && parsed.some(a => a.name === 'Mayuresh Polke')){
-        return parsed;
+      if(Array.isArray(parsed)){
+        // Privacy filter: purge any legacy hardcoded emails
+        const clean = parsed.filter(a => a && a.email && !a.email.includes('mayureshpolke') && !a.email.includes('rohit030305'));
+        if(clean.length !== parsed.length){
+          localStorage.setItem('greenmind_google_accounts', JSON.stringify(clean));
+        }
+        return clean;
       }
     }
   } catch(e){}
-  localStorage.setItem('greenmind_google_accounts', JSON.stringify(VIDEO_GOOGLE_ACCOUNTS));
-  return VIDEO_GOOGLE_ACCOUNTS;
+  return [];
+}
+
+function removeGoogleAccount(event, index){
+  if(event) event.stopPropagation();
+  try {
+    const accounts = getStoredGoogleAccounts();
+    accounts.splice(index, 1);
+    localStorage.setItem('greenmind_google_accounts', JSON.stringify(accounts));
+    renderGoogleAccounts();
+    if(accounts.length === 0){
+      startGoogleAnotherAccount();
+    }
+  } catch(e){}
 }
 
 function renderGoogleAccounts(){
@@ -4262,16 +4248,24 @@ function renderGoogleAccounts(){
   if(!listEl) return;
 
   const accounts = getStoredGoogleAccounts();
+  if(accounts.length === 0){
+    startGoogleAnotherAccount();
+    return;
+  }
+
+  showGoogleAccountList();
+
   let html = accounts.map((acc, index) => {
     return `
       <div class="google-acc-row" onclick="selectGoogleAccount(${index})">
         <div class="google-acc-avatar" style="background:${acc.avatarBg || '#1a73e8'}">
-          ${acc.initial || acc.name.charAt(0).toUpperCase()}
+          ${acc.initial || (acc.name ? acc.name.charAt(0).toUpperCase() : 'G')}
         </div>
-        <div class="google-acc-info">
-          <div class="google-acc-name">${acc.name}</div>
-          <div class="google-acc-email">${acc.email}</div>
+        <div class="google-acc-info" style="flex:1">
+          <div class="google-acc-name">${escapeHtml(acc.name)}</div>
+          <div class="google-acc-email">${escapeHtml(acc.email)}</div>
         </div>
+        <button type="button" class="google-acc-remove" onclick="removeGoogleAccount(event, ${index})" title="Remove account from this device" style="background:none;border:none;color:#9aa0a6;cursor:pointer;font-size:1.1rem;padding:0 6px">✕</button>
       </div>
     `;
   }).join('');
@@ -4293,8 +4287,13 @@ function renderGoogleAccounts(){
 }
 
 function openGoogleChooser(){
-  showGoogleAccountList();
-  renderGoogleAccounts();
+  const accounts = getStoredGoogleAccounts();
+  if(accounts.length > 0){
+    showGoogleAccountList();
+    renderGoogleAccounts();
+  } else {
+    startGoogleAnotherAccount();
+  }
 
   const isSignUp = (authMode === 'signup');
   const topTitle = document.getElementById('googleModalTopTitle');
@@ -4340,24 +4339,34 @@ function startGoogleAnotherAccount(){
   if(v1) v1.style.display = 'none';
   if(v2) v2.style.display = 'block';
   if(v3) v3.style.display = 'none';
+
+  const accounts = getStoredGoogleAccounts();
+  const btnBack = document.querySelector('#googleViewEmailStep .google-btn-back');
+  if(btnBack){
+    btnBack.style.display = accounts.length > 0 ? '' : 'none';
+  }
+
   const emailInput = document.getElementById('googleAnotherEmail');
   if(emailInput){
     emailInput.value = '';
-    setTimeout(() => emailInput.focus(), 50);
+    setTimeout(() => emailInput.focus(), 60);
   }
 }
 
 function proceedToGooglePassword(){
   const emailInput = document.getElementById('googleAnotherEmail');
-  const emailVal = emailInput?.value.trim() || 'mayureshpolke36@gmail.com';
+  const emailVal = emailInput?.value.trim();
 
-  let displayName = 'Mayuresh';
-  if(emailVal.includes('@')){
-    const prefix = emailVal.split('@')[0].replace(/[0-9]/g, '');
-    if(prefix.length > 2){
-      displayName = prefix.charAt(0).toUpperCase() + prefix.slice(1);
-    }
+  if(!emailVal || !emailVal.includes('@') || emailVal.length < 5){
+    alert('Please enter a valid Google Account email (e.g. yourname@gmail.com).');
+    emailInput?.focus();
+    return;
   }
+
+  // Derive user's real display name from their own email (e.g. john.doe@gmail.com -> John Doe)
+  let prefix = emailVal.split('@')[0];
+  let parts = prefix.split(/[._-]/).filter(p => p.length > 0);
+  let displayName = parts.map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join(' ') || 'User';
 
   const nameEl = document.getElementById('googleGreetingName');
   const emailEl = document.getElementById('googleGreetingEmail');
@@ -4374,7 +4383,7 @@ function proceedToGooglePassword(){
   const pwdInput = document.getElementById('googleAnotherPassword');
   if(pwdInput){
     pwdInput.value = '';
-    setTimeout(() => pwdInput.focus(), 50);
+    setTimeout(() => pwdInput.focus(), 60);
   }
 }
 
@@ -4396,20 +4405,29 @@ function toggleGooglePwdVisibility(){
 }
 
 function finishGoogleAnotherAccount(){
-  const email = document.getElementById('googleGreetingEmail')?.textContent || 'mayureshpolke36@gmail.com';
-  const nameTxt = document.getElementById('googleGreetingName')?.textContent || 'Hi Mayuresh';
-  const name = nameTxt.replace(/^Hi\s+/, '') + ' Polke';
+  const email = document.getElementById('googleGreetingEmail')?.textContent.trim();
+  if(!email){
+    showGoogleEmailStep();
+    return;
+  }
+  const nameTxt = document.getElementById('googleGreetingName')?.textContent.trim() || 'Hi User';
+  const name = nameTxt.replace(/^Hi\s+/, '') || 'Google User';
   const initial = name.charAt(0).toUpperCase();
+
+  const colors = ['#1a73e8', '#137333', '#c5221f', '#a142f4', '#f29900', '#00838f'];
+  let hash = 0;
+  for(let i=0; i<email.length; i++) hash = (hash << 5) - hash + email.charCodeAt(i);
+  const avatarBg = colors[Math.abs(hash) % colors.length];
 
   const newAcc = {
     id: 'google_' + Date.now(),
     name: name,
     email: email,
-    avatarBg: '#c5221f',
+    avatarBg: avatarBg,
     initial: initial
   };
 
-  const accounts = getStoredGoogleAccounts();
+  const accounts = getStoredGoogleAccounts().filter(a => a.email.toLowerCase() !== email.toLowerCase());
   accounts.unshift(newAcc);
   try {
     localStorage.setItem('greenmind_google_accounts', JSON.stringify(accounts));
