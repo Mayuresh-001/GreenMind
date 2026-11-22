@@ -1609,15 +1609,22 @@ footer strong{color:var(--bio)}
         To allow real Google Sign-In and Sign-Up, provide your official <strong>Google OAuth 2.0 Web Client ID</strong> from Google Cloud Console.
       </p>
 
-      <div style="margin-bottom:1rem">
-        <label for="cfgGoogleClientId" style="display:block;font-size:.74rem;font-weight:600;color:#bdc1c6;margin-bottom:.35rem;text-transform:uppercase;letter-spacing:.04em">Google Client ID</label>
-        <input type="text" id="cfgGoogleClientId" class="google-text-input" placeholder="e.g. 123456789-abcdefg.apps.googleusercontent.com" style="font-size:.82rem;padding:.65rem .8rem;font-family:monospace" spellcheck="false"/>
-        <small style="color:#80868b;font-size:.72rem;display:block;margin-top:.3rem">Client Secrets are never required or stored in frontend code.</small>
+      <div style="margin-bottom:.85rem">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.35rem">
+          <label for="cfgGoogleClientId" style="font-size:.74rem;font-weight:600;color:#bdc1c6;text-transform:uppercase;letter-spacing:.04em">Google OAuth Web Client ID</label>
+          <button type="button" onclick="clearStoredGoogleClientId()" style="background:none;border:none;color:#f28b82;font-size:.72rem;cursor:pointer;padding:0;text-decoration:underline">Reset / Clear</button>
+        </div>
+        <input type="text" id="cfgGoogleClientId" class="google-text-input" oninput="handleGoogleClientIdInput(this)" placeholder="123456789012-abc...apps.googleusercontent.com" style="font-size:.8rem;padding:.65rem .8rem;font-family:monospace" spellcheck="false"/>
+        <div id="cfgClientValidationNotice" style="font-size:.73rem;margin-top:.4rem;line-height:1.4;display:none"></div>
+        <small style="color:#80868b;font-size:.71rem;display:block;margin-top:.3rem">
+          Must start with your numeric Google Cloud Project Number and end with <code>.apps.googleusercontent.com</code>.
+        </small>
       </div>
 
-      <div style="background:#202124;border:1px solid #3c4043;border-radius:8px;padding:.75rem .9rem;margin-bottom:1rem;font-size:.74rem;line-height:1.5;color:#9aa0a6">
-        <strong style="color:#e8eaed;display:block;margin-bottom:.2rem">Authorized JavaScript Origins in Google Cloud:</strong>
+      <div style="background:#202124;border:1px solid #3c4043;border-radius:8px;padding:.75rem .9rem;margin-bottom:.85rem;font-size:.74rem;line-height:1.5;color:#9aa0a6">
+        <strong style="color:#e8eaed;display:block;margin-bottom:.2rem">Authorized JavaScript Origins (Google Cloud Console):</strong>
         <code style="display:block;color:#8ab4f8;word-break:break-all">http://localhost:8080</code>
+        <code style="display:block;color:#8ab4f8;word-break:break-all">http://127.0.0.1:8080</code>
         <code style="display:block;color:#8ab4f8;word-break:break-all">https://mayuresh-001.github.io</code>
       </div>
 
@@ -1626,7 +1633,7 @@ footer strong{color:var(--bio)}
         <button type="button" class="google-btn-next" onclick="saveGoogleConfigAndConnect()">Save &amp; Connect</button>
       </div>
 
-      <div style="margin-top:1.1rem;border-top:1px solid #3c4043;padding-top:.85rem;display:flex;justify-content:space-between;align-items:center">
+      <div style="margin-top:.85rem;border-top:1px solid #3c4043;padding-top:.75rem;display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:.73rem;color:#80868b">Need to verify locally first?</span>
         <button type="button" onclick="testDeveloperGoogleAuth()" style="background:none;border:none;color:#8ab4f8;font-size:.75rem;cursor:pointer;text-decoration:underline;padding:0">
           ⚡ One-Click Auth Test
@@ -4316,15 +4323,115 @@ const GOOGLE_AUTH_CONFIG = {
   ORIGINS: ['http://localhost:8080', 'http://127.0.0.1:8080', 'https://mayuresh-001.github.io']
 };
 
+function validateGoogleClientId(id){
+  if(!id || typeof id !== 'string' || !id.trim()){
+    return {
+      valid: false,
+      reason: 'No Google Client ID provided. Please enter your OAuth 2.0 Web Client ID from Google Cloud Console.'
+    };
+  }
+  const clean = id.trim();
+
+  // Diagnostic 1: Email address passed instead of OAuth Client ID
+  if(clean.includes('@')){
+    return {
+      valid: false,
+      type: 'email',
+      reason: `"${clean}" is an email address. A Google Client ID is NOT an email address. It is the OAuth 2.0 Web Client ID generated in Google Cloud Console ending in ".apps.googleusercontent.com".`
+    };
+  }
+
+  // Diagnostic 2: Google API Key
+  if(clean.startsWith('AIzaSy')){
+    return {
+      valid: false,
+      type: 'apikey',
+      reason: 'The key starts with "AIzaSy", which is a Google API Key, not an OAuth 2.0 Client ID. In Google Cloud Console, create an "OAuth client ID" of type "Web application".'
+    };
+  }
+
+  // Diagnostic 3: Project name / ID without domain
+  if(!clean.endsWith('.apps.googleusercontent.com')){
+    return {
+      valid: false,
+      type: 'missing_domain',
+      reason: `"${clean}" is missing ".apps.googleusercontent.com". A Web Client ID must follow the pattern: [Project-Number]-[Hash].apps.googleusercontent.com`
+    };
+  }
+
+  // Diagnostic 4: Missing project number prefix
+  const prefixMatch = clean.match(/^(\d+)-/);
+  if(!prefixMatch){
+    return {
+      valid: false,
+      type: 'missing_project_id',
+      reason: 'The Client ID is missing a numeric Google Cloud Project Number at the beginning (e.g. 123456789012-xxxx.apps.googleusercontent.com). This is what caused Google Error 401: Client missing a project id.'
+    };
+  }
+
+  return {
+    valid: true,
+    projectNumber: prefixMatch[1],
+    clientId: clean
+  };
+}
+
+function handleGoogleClientIdInput(input){
+  const notice = document.getElementById('cfgClientValidationNotice');
+  if(!notice) return;
+  const val = input ? input.value.trim() : '';
+  if(!val){
+    notice.style.display = 'none';
+    return;
+  }
+  const check = validateGoogleClientId(val);
+  if(check.valid){
+    notice.style.display = 'block';
+    notice.style.color = '#81c995';
+    notice.innerHTML = `✓ Valid Web Client ID format (Google Cloud Project: <strong>${check.projectNumber}</strong>).`;
+  } else {
+    notice.style.display = 'block';
+    notice.style.color = '#f28b82';
+    notice.textContent = '⚠️ ' + check.reason;
+  }
+}
+
+function clearStoredGoogleClientId(){
+  localStorage.removeItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY);
+  const input = document.getElementById('cfgGoogleClientId');
+  if(input) input.value = '';
+  const notice = document.getElementById('cfgClientValidationNotice');
+  if(notice){
+    notice.style.display = 'block';
+    notice.style.color = '#8ab4f8';
+    notice.textContent = 'Saved Client ID was purged from local storage.';
+  }
+  setAuthAlert('Saved Google Client ID was cleared.', 'ok');
+}
+
 function getGoogleClientId(){
-  return localStorage.getItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY) || GOOGLE_AUTH_CONFIG.DEFAULT_CLIENT_ID;
+  const stored = localStorage.getItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY);
+  if(stored){
+    const check = validateGoogleClientId(stored);
+    if(check.valid){
+      return check.clientId;
+    } else {
+      console.warn('[Google OAuth] Purging invalid stored Client ID:', stored, check.reason);
+      localStorage.removeItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY);
+    }
+  }
+  const defCheck = validateGoogleClientId(GOOGLE_AUTH_CONFIG.DEFAULT_CLIENT_ID);
+  return defCheck.valid ? defCheck.clientId : '';
 }
 
 function setGoogleClientId(id){
-  if(id && id.trim()){
-    localStorage.setItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY, id.trim());
+  const check = validateGoogleClientId(id);
+  if(check.valid){
+    localStorage.setItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY, check.clientId);
+    return true;
   } else {
     localStorage.removeItem(GOOGLE_AUTH_CONFIG.STORAGE_CLIENT_ID_KEY);
+    return false;
   }
 }
 
@@ -4388,13 +4495,26 @@ function setGoogleAuthLoading(loading){
 
 function handleGoogleAuthClick(){
   const clientId = getGoogleClientId();
+  const check = validateGoogleClientId(clientId);
 
-  // If a client ID is configured and GIS is available, trigger official OAuth
-  if(clientId && !clientId.includes('example') && typeof google !== 'undefined' && google.accounts){
+  if(!check.valid){
+    setGoogleAuthLoading(false);
+    openGoogleConfigModal();
+    const notice = document.getElementById('cfgClientValidationNotice');
+    if(notice && clientId){
+      notice.style.display = 'block';
+      notice.style.color = '#f28b82';
+      notice.textContent = '⚠️ ' + check.reason;
+    }
+    return;
+  }
+
+  // If a valid client ID is configured and GIS is available, trigger official OAuth
+  if(typeof google !== 'undefined' && google.accounts){
     setGoogleAuthLoading(true);
     try {
       google.accounts.id.initialize({
-        client_id: clientId,
+        client_id: check.clientId,
         callback: handleGoogleCredentialResponse,
         auto_select: false,
         cancel_on_tap_outside: true,
@@ -4405,27 +4525,33 @@ function handleGoogleAuthClick(){
       google.accounts.id.prompt((notification) => {
         if(notification.isNotDisplayed() || notification.isSkippedMoment()){
           console.log('[Google GIS Prompt fallback to Token Client]');
-          tryOAuth2TokenClient(clientId);
+          tryOAuth2TokenClient(check.clientId);
         }
       });
       return;
     } catch(err){
       console.warn('Google prompt fallback:', err);
-      tryOAuth2TokenClient(clientId);
+      tryOAuth2TokenClient(check.clientId);
       return;
     }
   }
 
-  // If no client ID configured yet, open the interactive Google Cloud OAuth Setup Assistant
   setGoogleAuthLoading(false);
   openGoogleConfigModal();
 }
 
 function tryOAuth2TokenClient(clientId){
+  const check = validateGoogleClientId(clientId);
+  if(!check.valid){
+    setGoogleAuthLoading(false);
+    openGoogleConfigModal();
+    return;
+  }
+
   try {
     if(window.google && google.accounts && google.accounts.oauth2){
       const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
+        client_id: check.clientId,
         scope: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email openid',
         callback: async (tokenResponse) => {
           setGoogleAuthLoading(false);
@@ -4438,7 +4564,13 @@ function tryOAuth2TokenClient(clientId){
         error_callback: (err) => {
           setGoogleAuthLoading(false);
           console.error('[Google OAuth2 Error]', err);
-          setAuthAlert('Google OAuth error: ' + (err.message || 'Authentication declined.'));
+          let errDetail = err.message || 'Authentication error';
+          if(err.type === 'popup_closed'){
+            errDetail = 'Google sign-in popup was closed before completion.';
+          } else if(err.type === 'access_denied'){
+            errDetail = 'Access was denied. Please select your Google account and grant permissions.';
+          }
+          setAuthAlert('Google OAuth Notice: ' + errDetail);
         }
       });
       tokenClient.requestAccessToken({ prompt: 'select_account' });
@@ -4561,7 +4693,15 @@ function openGoogleConfigModal(e){
   if(e) e.preventDefault();
   const modal = document.getElementById('googleConfigOverlay');
   const input = document.getElementById('cfgGoogleClientId');
-  if(input) input.value = getGoogleClientId() || '';
+  const notice = document.getElementById('cfgClientValidationNotice');
+  if(input){
+    input.value = getGoogleClientId() || '';
+    if(input.value && notice){
+      handleGoogleClientIdInput(input);
+    } else if(notice){
+      notice.style.display = 'none';
+    }
+  }
   if(modal) modal.style.display = 'flex';
 }
 
@@ -4579,13 +4719,17 @@ function handleGoogleConfigOverlayClick(e){
 function saveGoogleConfigAndConnect(){
   const input = document.getElementById('cfgGoogleClientId');
   const val = input ? input.value.trim() : '';
-  if(!val){
-    alert('Please enter your Google OAuth 2.0 Web Client ID from Google Cloud Console.');
+  const check = validateGoogleClientId(val);
+
+  if(!check.valid){
+    handleGoogleClientIdInput(input);
+    alert('Invalid Google OAuth 2.0 Web Client ID:\n\n' + check.reason);
     return;
   }
+
   setGoogleClientId(val);
   closeGoogleConfigModal();
-  setAuthAlert('✓ Google Client ID saved! Initializing Google Identity Services…', 'ok');
+  setAuthAlert(`✓ Google Client ID configured (Project ${check.projectNumber})! Initializing Google Identity Services…`, 'ok');
   initGoogleIdentity();
   setTimeout(() => {
     handleGoogleAuthClick();

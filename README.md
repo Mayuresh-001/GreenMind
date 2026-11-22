@@ -49,6 +49,7 @@ To enable your own production Google OAuth 2.0 Client ID for GreenMind:
 6. Click **CREATE**.
 7. Copy your generated **Client ID** (formatted like `xxxxxxxxxxxx-xxxxxxxxxxxxxxxx.apps.googleusercontent.com`).
    > **Note on Security**: Client-side OAuth 2.0 uses only the public Client ID. **Never** include or expose a Client Secret in client-side frontend code.
+   > **Troubleshooting Error 401 (`invalid_client / Client missing a project id`)**: Google throws this error if you enter an email address or project name instead of the numeric OAuth Client ID. A valid Client ID must start with your numeric Project Number and end with `.apps.googleusercontent.com`.
 
 ### 4. Connect Client ID to GreenMind
 You can configure your Client ID in two ways:
