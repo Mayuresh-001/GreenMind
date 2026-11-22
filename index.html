@@ -4212,6 +4212,13 @@ function setAuthAlert(msg, type='err'){
 /* ============================================================
    GOOGLE ACCOUNT CHOOSER ENGINE (VIDEO SOLUTION)
 ============================================================ */
+function escapeHtml(s){
+  if(s === null || s === undefined) return '';
+  const d = document.createElement('div');
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
 function getStoredGoogleAccounts(){
   try {
     const stored = localStorage.getItem('greenmind_google_accounts');
