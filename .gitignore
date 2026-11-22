@@ -1,0 +1,16 @@
+# OS & Temporary Files
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.log
+
+# Python / Jupyter artifacts
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Node / Editor files
+node_modules/
+.vscode/
+.idea/
